@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thailand</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+  /* =========================================
+     1. CSS VARIABLES (Easy to tweak colors)
+     ========================================= */
+  :root {
+    --title-bg: #3b82f6; /* Mid-blue background for title */
+    --accent: #2f6f5e;
+    --accent-dark: #204d40;
+    --bg: #f7f6f2;
+    --card-bg: #ffffff;
+    --text: #26302c;
+    --text-muted: #5c6b64;
+    --instructions-bg: #e2e8f0; /* Darker background for instructions */
+    --instructions-text: #334155; /* Darker text for instructions */
+    --border: #e1ddd3;
+  }
+
+  /* =========================================
+     2. GLOBAL RESET & BASE STYLES
+     ========================================= */
+  * { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+    -webkit-tap-highlight-color: transparent; /* Removes mobile tap shadow circle */
+  }
+  
+  html, body {
+    /* CHANGED: min-height allows the page to grow and scroll naturally, 
+       rather than being locked to the viewport height. */
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    max-width: 1800px;
+    margin: 0 auto;
+    width: 100%;
+    box-shadow: 0 0 20px rgba(0,0,0,0.05); 
+  }
+
+  /* =========================================
+     3. HEADER & TITLE SECTION
+     ========================================= */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 20px; /* Reduced top/bottom padding */
+    background: var(--title-bg); 
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  header img.logo {
+    width: 160px;
+    max-width: 40vw;
+    height: auto;
+    aspect-ratio: 2 / 1;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  header .title-block {
+    padding-left: 16px; /* Increased left padding for title/subtitle */
+  }
+
+  header .title-block h1 {
+    font-size: 1.4rem;
+    line-height: 1.2;
+  }
+
+  header .title-block p {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.85);
+    margin-top: 2px;
+  }
+
+  @media (max-width: 480px) {
+    header img.logo { width: 130px; max-width: 50vw; }
+    header .title-block h1 { font-size: 1.15rem; }
+  }
+
+  /* =========================================
+     4. MAP CONTROLS & INSTRUCTIONS
+     ========================================= */
+  #map-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--instructions-bg);
+    color: var(--instructions-text);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  #instructions-text { flex: 1; }
+
+  .reset-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .reset-btn:hover { background: var(--accent-dark); }
+  .reset-btn:active, .place-card:active { 
+    transform: scale(0.97); 
+    opacity: 0.9;
+  }
+
+  /* =========================================
+     5. MAIN LAYOUT (Mobile First)
+     ========================================= */
+  #main-grid {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    /* CHANGED: Removed flex: 1 to prevent artificial viewport filling, 
+       allowing natural document flow and scrolling to the footer. */
+  }
+
+  #map {
+    order: 1;
+    /* CHANGED: Increased from 50vh to 75vh (50% larger) to dominate mobile screen */
+    height: 75vh; 
+    min-height: 400px;
+    width: 100%;
+  }
+
+  #tips-section {
+    order: 2;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    padding: 20px 16px;
+  }
+
+  #sidebar {
+    order: 3;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    padding: 16px;
+    /* CHANGED: Removed max-height and overflow-y so it expands naturally, 
+       adding to page length and pushing the footer down to require scrolling. */
+  }
+
+  #sidebar h2 {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* =========================================
+     6. PLACE CARDS (Sidebar)
+     ========================================= */
+  .place-card {
+    display: flex;
+    gap: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.15s, transform 0.15s;
+  }
+  .place-card:hover {
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    transform: translateY(-1px);
+  }
+  .place-card img {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #ddd;
+  }
+  .place-card .info {
+    padding: 8px 10px 8px 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .place-card h3 {
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+  .place-card p {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .place-card p.opinion {
+    color: var(--accent-dark);
+    font-style: italic;
+    -webkit-line-clamp: 2;
+  }
+  
+  .place-card .website-link {
+    font-size: 0.75rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    margin-top: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .place-card .website-link:hover { text-decoration: underline; }
+
+  /* =========================================
+     7. TIPS SECTION
+     ========================================= */
+  #tips-section .tips-inner {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  #tips-section h2 {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+  .tips-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .tip-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .tip-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .tip-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: capitalize;
+  }
+  .tip-location {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .tip-text {
+    font-size: 0.9rem;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  /* =========================================
+     8. LEAFLET POPUP STYLING
+     ========================================= */
+  .leaflet-popup-content {
+    margin: 10px 12px;
+    min-width: 220px;
+    max-width: 280px;
+  }
+  .leaflet-popup-content img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: #eee;
+  }
+  .leaflet-popup-content h3 {
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+  }
+  .leaflet-popup-content p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+  .leaflet-popup-content p.opinion {
+    color: var(--accent-dark);
+    font-style: italic;
+  }
+  .leaflet-popup-content .links {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .leaflet-popup-content a {
+    font-size: 0.82rem;
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .leaflet-popup-content a:hover { text-decoration: underline; }
+
+  /* =========================================
+     9. DISCLAIMER FOOTER
+     ========================================= */
+  .disclaimer-footer {
+    background: #f1f5f9;
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    width: 100%;
+    /* CHANGED: Removed margin-top: auto so it flows naturally at the very end 
+       of the document, requiring a scroll to reach. */
+  }
+
+  /* =========================================
+     10. DESKTOP LAYOUT (Min-width 768px)
+     ========================================= */
+  @media (min-width: 768px) {
+    #main-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: 1fr auto;
+      grid-template-areas:
+        "sidebar map"
+        "tips    tips";
+    }
+
+    #map {
+      order: unset;
+      grid-area: map;
+      height: 100%;
+      min-height: 700px; /* Ensures map remains large on desktop */
+    }
+
+    #sidebar {
+      order: unset;
+      grid-area: sidebar;
+      border-right: 1px solid var(--border);
+      border-top: none;
+      overflow-y: auto;
+      max-height: calc(100vh - 120px); /* Constrain sidebar scroll on desktop */
+    }
+
+    #tips-section {
+      order: unset;
+      grid-area: tips;
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+    }
+
+    .tips-grid {
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+    
+    #map-controls {
+      flex-direction: row;
+      align-items: center;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <img class="logo" src="assets/logo.png" alt="logo">
+    <div class="title-block">
+      <h1>Thailand</h1>
+      <p>A curated map and guide of places worth visiting</p>
+    </div>
+  </header>
+
+  <!-- CONTROLS & INSTRUCTIONS -->
+  <div id="map-controls">
+    <span id="instructions-text">Click a marker to see details and photos. Click Restore Map View to return to full map view.</span>
+    <button id="reset-view-btn" class="reset-btn" title="Show all markers on the map">Reset Map View</button>
+  </div>
+
+  <!-- MAIN CONTENT GRID -->
+  <div id="main-grid">
+    
+    <!-- SIDEBAR: List of Places -->
+    <div id="sidebar">
+      <h2>Places (33)</h2>
+      
+      <div class="place-card" onclick="showPlace('101')">
+        
+        <img src="images/thailand/101_Grand_Palace_01_opt.webp" alt="Grand Palace" loading="lazy">
+        
+        <div class="info">
+          <h3>Grand Palace</h3>
+          <p>The Grand Palace is a dazzling complex of royal buildings, courtyards and sacred temples that once housed Thailand’s monarchs. Its intricate architecture and the Emerald Buddha attract millions each year.</p>
+          
+          <p class="opinion">A must-see for any first-time visitor; the sheer scale and detail are unforgettable.</p>
+          
+          
+          
+          <a href="https://www.royalgrandpalace.th" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('102')">
+        
+        <img src="images/thailand/102_Wat_Arun_Temple_of_Dawn_01_opt.webp" alt="Wat Arun" loading="lazy">
+        
+        <div class="info">
+          <h3>Wat Arun</h3>
+          <p>Known as the Temple of Dawn, Wat Arun dazzles with its porcelain‑clad spires that glow at sunrise and sunset over the Chao Phraya River.</p>
+          
+          <p class="opinion">Ideal for early‑morning visits; a iconic photo spot and cultural highlight.</p>
+          
+          
+          
+          <a href="https://www.watarun.net" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('103')">
+        
+        <div class="info">
+          <h3>Ayutthaya Historical Park</h3>
+          <p>The ruins of the former Siamese capital showcase towering stupas, Buddha statues and palace foundations that tell stories of a once‑flourishing empire.</p>
+          
+          <p class="opinion">Must-see for history buffs; a day trip from Bangkok offers a vivid glimpse of ancient Thailand.</p>
+          
+          
+          
+          <a href="https://www.ayutthaya.go.th" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('104')">
+        
+        <img src="images/thailand/104_Ayutthaya_Historical_Park_01_opt.webp" alt="Chiang Mai Old City" loading="lazy">
+        
+        <div class="info">
+          <h3>Chiang Mai Old City</h3>
+          <p>Enclosed by ancient walls, the Old City houses revered temples, bustling markets and a relaxed vibe that contrasts with Thailand’s bustling south.</p>
+          
+          <p class="opinion">Nice-to-see for culture lovers; spend a full day exploring its temples and cafés.</p>
+          
+          
+          
+          <a href="https://www.chiangmai.bangkok.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('105')">
+        
+        <div class="info">
+          <h3>Doi Suthep</h3>
+          <p>Perched on a mountain overlooking Chiang Mai, Doi Suthep’s golden stupa and panoramic views make it a spiritual and visual highlight.</p>
+          
+          <p class="opinion">Must-see for sunrise or sunset; the climb adds a rewarding sense of adventure.</p>
+          
+          
+          
+          <a href="https://www.doisuthep.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('106')">
+        
+        <div class="info">
+          <h3>Sukhothai Historical Park</h3>
+          <p>The birthplace of Thai architecture, Sukhothai’s well‑preserved stone temples and lotus‑filled ponds evoke the elegance of the 13th‑century kingdom.</p>
+          
+          <p class="opinion">Ideal for a second visit; the tranquil atmosphere appeals to history enthusiasts.</p>
+          
+          
+          
+          <a href="https://www.sukhothaihistoricalpark.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('107')">
+        
+        <img src="images/thailand/107_Doi_Inthanon_National_Park_01_opt.webp" alt="Damnoen Saduak Floating Market" loading="lazy">
+        
+        <div class="info">
+          <h3>Damnoen Saduak Floating Market</h3>
+          <p>This iconic floating market showcases vendors selling fruit, noodles and souvenirs from colorful boats along a bustling canal.</p>
+          
+          <p class="opinion">Nice-to-see for cultural immersion; best visited early to beat the tourist rush.</p>
+          
+          
+          
+          <a href="https://www.damnoensaduakfloatingmarket.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('109')">
+        
+        <div class="info">
+          <h3>Erawan National Park</h3>
+          <p>Famous for its tiered emerald-green waterfalls that cascade over seven levels, surrounded by lush forest and limestone cliffs.</p>
+          
+          <p class="opinion">A must-see for waterfall lovers; the hike is rewarding and suitable for most visitors.</p>
+          
+          
+          
+          <a href="https://www.thainationalparks.com/erawan-national-park" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('110')">
+        
+        <div class="info">
+          <h3>Doi Inthanon National Park</h3>
+          <p>Home to the country's highest mountain, misty cloud forests, and stunning King and Queen pagodas with panoramic views.</p>
+          
+          <p class="opinion">Must-see for hikers and photographers; the cooler climate adds a unique experience.</p>
+          
+          
+          
+          <a href="https://www.thainationalparks.com/doi-inthanon-national-park" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('111')">
+        
+        <div class="info">
+          <h3>Phang Nga Bay</h3>
+          <p>Iconic limestone karsts jut out of emerald waters, creating dramatic seascapes famously featured in movies.</p>
+          
+          <p class="opinion">Nice-to-see on a day cruise; ideal for photography and gentle kayaking.</p>
+          
+          
+          
+          <a href="https://www.tourismthailand.org/Attraction/Phang-Nga-Bay--107" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('112')">
+        
+        <div class="info">
+          <h3>Khao Sok National Park</h3>
+          <p>A stunning man-made lake framed by towering limestone cliffs and dense rainforest, offering jungle safaris and floating bungalows.</p>
+          
+          <p class="opinion">Must-see for nature immersion; suitable for adventure seekers and families alike.</p>
+          
+          
+          
+          <a href="https://www.thainationalparks.com/khao-sok-national-park" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('113')">
+        
+        <div class="info">
+          <h3>Khao Yai National Park</h3>
+          <p>One of Southeast Asia's largest wildlife reserves, featuring waterfalls, grasslands, and abundant wildlife such as elephants and gibbons.</p>
+          
+          <p class="opinion">A must-see for wildlife enthusiasts; can be explored over multiple days.</p>
+          
+          
+          
+          <a href="https://www.thainationalparks.com/khao-yai-national-park" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('114')">
+        
+        <div class="info">
+          <h3>Bangkok</h3>
+          <p>Thailand’s bustling capital blends modern skyscrapers with historic temples; top attractions include the Grand Palace, Wat Arun, and Chatuchak Weekend Market.</p>
+          
+          <p class="opinion">A must-see for first-time visitors who want to experience Thailand’s vibrant culture and nightlife.</p>
+          
+          
+          
+          <a href="https://www.tourismthailand.org/Destination/Bangkok" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('115')">
+        
+        <div class="info">
+          <h3>Chiang Mai</h3>
+          <p>Northern Thailand’s cultural hub is famed for its ancient walled city, night markets, and nearby mountains; highlights are Wat Phra That Doi Suthep, Chiang Mai Old City Temples, and the Sunday Walking Street.</p>
+          
+          <p class="opinion">Ideal for travelers seeking history, festivals, and a relaxed atmosphere; a must-see if you enjoy cultural immersion.</p>
+          
+          
+          
+          <a href="https://www.tourismthailand.org/Destination/Chiang-Mai" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('116')">
+        
+        <div class="info">
+          <h3>Pattaya</h3>
+          <p>A coastal city known for its lively entertainment, water sports, and cultural sites; must‑visit attractions include Walking Street, Sanctuary of Truth, and Nong Nooch Tropical Garden.</p>
+          
+          <p class="opinion">Suitable for those who enjoy nightlife and family-friendly attractions; not essential if you prefer quieter beaches.</p>
+          
+          
+          
+          <a href="https://www.tourismthailand.org/Destination/Pattaya" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('117')">
+        
+        <div class="info">
+          <h3>Krabi</h3>
+          <p>Krabi offers dramatic limestone cliffs, emerald lagoons and easy access to Railay Beach, ideal for rock‑climbing and island hopping.</p>
+          
+          <p class="opinion">A must‑see for adventure lovers and those who prefer a more relaxed vibe than Phuket.</p>
+          
+          
+          
+          <a href="https://www.krabi.go.th" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('118')">
+        
+        <div class="info">
+          <h3>Hua Hin</h3>
+          <p>Hua Hin blends a historic royal resort town feel with a long sandy beach, night markets and nearby golf courses.</p>
+          
+          <p class="opinion">Suitable for travelers who enjoy a quieter seaside town with easy day trips to Bangkok; great for a laid‑back getaway.</p>
+          
+          
+          
+          <a href="https://www.hua-hin.go.th" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('119')">
+        
+        <div class="info">
+          <h3>Phuket</h3>
+          <p>Thailand’s largest island, Phuket blends bustling nightlife, vibrant markets, and over 30 stunning beaches, making it a versatile destination for both adventure and relaxation.</p>
+          
+          <p class="opinion">A must‑see for first‑time visitors who want a mix of culture, dining, and beach fun.</p>
+          
+          
+          
+          <a href="https://www.phuket.net" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('120')">
+        
+        <div class="info">
+          <h3>Koh Samui</h3>
+          <p>Known for palm‑fringed bays, luxury resorts, and the iconic Big Buddha, Koh Samui offers a laid‑back vibe with plenty of upscale amenities.</p>
+          
+          <p class="opinion">Ideal for travelers seeking a balance of relaxation and nightlife; a must‑see for beach lovers.</p>
+          
+          
+          
+          <a href="https://www.kohsamui.org" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('121')">
+        
+        <div class="info">
+          <h3>Koh Phi Phi</h3>
+          <p>Famous for Maya Bay’s crystal waters and dramatic limestone cliffs, the Phi Phi archipelago is a hotspot for snorkeling, diving, and iconic scenery.</p>
+          
+          <p class="opinion">A must‑see if you love dramatic landscapes and vibrant marine life, though it can be crowded.</p>
+          
+          
+          
+          <a href="https://www.phiphi.phuketguide.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('122')">
+        
+        <div class="info">
+          <h3>Koh Tao</h3>
+          <p>Renowned as a diver’s paradise, Koh Tao boasts abundant coral reefs, affordable dive schools, and a relaxed island atmosphere.</p>
+          
+          <p class="opinion">Perfect for diving enthusiasts and budget travelers; a must‑see for underwater exploration.</p>
+          
+          
+          
+          <a href="https://www.koh-tao.org" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('123')">
+        
+        <div class="info">
+          <h3>Koh Phangan</h3>
+          <p>Best known for its Full Moon Party, Koh Phangan also offers tranquil waterfalls, quiet bays, and lush jungles.</p>
+          
+          <p class="opinion">Great for partygoers and nature lovers alike; must‑see for the Full Moon experience, otherwise a nice‑to‑see island.</p>
+          
+          
+          
+          <a href="https://www.kohphangan.org" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('124')">
+        
+        <div class="info">
+          <h3>Koh Chang</h3>
+          <p>Thailand’s second‑largest island, Koh Chang offers rugged mountains, waterfalls, and a mix of lively and secluded beaches.</p>
+          
+          <p class="opinion">Suitable for adventure seekers and families; a nice‑to‑see alternative to the more touristy islands.</p>
+          
+          
+          
+          <a href="https://www.kohchang.org" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('125')">
+        
+        <div class="info">
+          <h3>Similan Islands</h3>
+          <p>A world‑renowned dive destination, the Similan Islands showcase pristine white beaches and some of the clearest waters in the region.</p>
+          
+          <p class="opinion">A must‑see for serious divers and snorkelers; can be deferred if diving isn’t a priority.</p>
+          
+          
+          
+          <a href="https://www.similanislands.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('126')">
+        
+        <div class="info">
+          <h3>Wat Pho</h3>
+          <p>Wat Pho houses the massive Reclining Buddha and is renowned as Thailand's oldest university of traditional massage.</p>
+          
+          <p class="opinion">Must-see for its iconic statue and tranquil atmosphere; perfect for a cultural pause.</p>
+          
+          
+          
+          <a href="https://www.watpho.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('127')">
+        
+        <div class="info">
+          <h3>Chatuchak Weekend Market</h3>
+          <p>One of the world’s largest markets, Chatuchak offers everything from vintage clothing to exotic foods across 27,000 stalls.</p>
+          
+          <p class="opinion">A must-see for shoppers and foodies; allocate several hours to explore its maze-like aisles.</p>
+          
+          
+          
+          <a href="https://www.chatuchakmarket.org" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('128')">
+        
+        <div class="info">
+          <h3>Jim Thompson House</h3>
+          <p>The former home of the American silk entrepreneur showcases traditional Thai teak architecture and a fine silk collection.</p>
+          
+          <p class="opinion">Nice-to-see for design enthusiasts and history buffs; a peaceful retreat from the city bustle.</p>
+          
+          
+          
+          <a href="https://www.jimthompsonhouse.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('129')">
+        
+        <div class="info">
+          <h3>MBK Center</h3>
+          <p>A massive shopping complex famous for affordable electronics, fashion, and a lively food court.</p>
+          
+          <p class="opinion">Great for a quick shopping fix; not a cultural priority but convenient for tech lovers.</p>
+          
+          
+          
+          <a href="https://www.mbkcenter.co.th" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('131')">
+        
+        <div class="info">
+          <h3>Wat Chedi Luang</h3>
+          <p>A historic temple housing a massive, partially ruined chedi that once held the Emerald Buddha.</p>
+          
+          <p class="opinion">Nice-to-see for its atmospheric ruins and cultural depth; fits well into a day exploring Chiang Mai’s Old City.</p>
+          
+          
+          
+          <a href="https://www.tourismthailand.org/Attraction/Wat-Chedi-Luang" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('132')">
+        
+        <div class="info">
+          <h3>Chiang Mai Night Bazaar</h3>
+          <p>A bustling evening market offering handicrafts, street food, and live performances along a vibrant promenade.</p>
+          
+          <p class="opinion">Must-see for night‑life lovers and souvenir hunters; the lively atmosphere makes it a memorable experience.</p>
+          
+          
+          
+          <a href="https://www.chiangmainightbazaar.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('133')">
+        
+        <div class="info">
+          <h3>Phuket Old Town</h3>
+          <p>Charming Sino‑Portuguese shophouses line colorful streets, hosting cafés, galleries, and Sunday street markets.</p>
+          
+          <p class="opinion">Nice-to-see for architecture fans and relaxed strolls; a pleasant contrast to Phuket’s beach scene.</p>
+          
+          
+          
+          <a href="https://www.phuket.com/phuket-old-town.htm" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('135')">
+        
+        <div class="info">
+          <h3>Patong Beach</h3>
+          <p>Phuket’s most famous beach combines golden sand, vibrant nightlife, and a bustling promenade of bars and restaurants.</p>
+          
+          <p class="opinion">Suitable for beach lovers and partygoers; can be deferred if you prefer quieter shores.</p>
+          
+          
+          
+          <a href="https://www.patong.net" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+      <div class="place-card" onclick="showPlace('136')">
+        
+        <div class="info">
+          <h3>Sanctuary of Truth</h3>
+          <p>An all‑wood temple filled with intricate carvings that celebrate Buddhist and Hindu mythology, set against the sea.</p>
+          
+          <p class="opinion">Must-see for architecture aficionados; the sheer craftsmanship makes it a unique photo spot.</p>
+          
+          
+          
+          <a href="https://www.sanctuaryoftruth.com" target="_blank" rel="noopener" class="website-link" onclick="event.stopPropagation();">
+            Website &#8594;
+          </a>
+          
+        </div>
+      </div>
+      
+    </div>
+
+    <!-- MAP CONTAINER -->
+    <div id="map"></div>
+
+    <!-- TIPS SECTION (Optional) -->
+    
+    <div id="tips-section">
+      <div class="tips-inner">
+        <h2>Travel Tips</h2>
+        <div class="tips-grid">
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Time To Visit</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">The ideal time to visit Thailand is between November and early April, when the weather is cool and dry across most regions; this period also avoids the heavy monsoon rains and sees fewer crowds than the peak holiday weeks.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Plan</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">For a 1‑week trip, concentrate on Bangkok’s highlights—Grand Palace, Wat Pho, and a day trip to Ayutthaya—then finish with a quick overnight stay on Koh Samet for a taste of beach relaxation.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Plan</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">A 2‑week itinerary works well by splitting time between the north and south: spend 4‑5 days exploring Chiang Mai’s temples, night markets, and nearby Doi Inthanon, then fly to the Andaman coast for a week of island hopping on Phuket, Krabi, and the Phi Phi islands.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Plan</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">With 3 weeks you can experience Thailand’s full spectrum: start in Bangkok (3 days), head north to Chiang Mai and Pai (5‑6 days for culture and jungle trekking), return south for the Gulf islands (Koh Samui, Koh Tao, Koh Phangan – 7 days), and wrap up with a relaxed stay in the historic city of Ayutthaya or the coastal town of Hua Hin (3‑4 days).</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Weather Info</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Thailand has three main seasons: hot (Mar‑May) with temps 30‑40 °C, rainy (Jun‑Oct) bringing heavy monsoon showers especially in the north and east, and cool (Nov‑Feb) with milder 24‑30 °C and lower humidity; travelers should pack light, breathable clothing, a rain jacket for the monsoon months, and stay alert for occasional flooding or tropical storms.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Local Tips</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Use the Grab app for rides, but avoid rush hour traffic; the BTS Skytrain and MRT are faster.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Local Tips</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">When visiting temples, dress modestly—cover shoulders and knees, and remove shoes before entering.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Local Tips</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Carry small change for street food and tuk‑tuk fares; many vendors don’t accept cards.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Local Tips</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Beware of scams involving gem sales and tuk‑tuk tours; stick to reputable agencies or ask your hotel for recommendations.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Local Tips</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Explore lesser‑known neighborhoods like Talat Noi in Bangkok or Chiang Mai’s Nimmanhaemin for authentic cafés and street art away from tourist crowds.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Budget Tips</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Budget travelers can get by on about ฿800‑฿1,200 ($22‑$33) per day by staying in hostels, eating street food, and using local transport, while mid‑range visitors typically spend ฿2,000‑฿3,500 ($55‑$95) and luxury travelers often exceed ฿6,000 ($190).</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Budget Tips</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Save money by buying a prepaid tourist SIM for data, using the reliable yet cheap songthaew or motorbike taxis, and purchasing tickets for attractions online in advance to snag discounts.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Transport</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Use the BTS Skytrain and MRT subway in Bangkok for fast, cheap, air‑conditioned travel; get a Rabbit Card or stored‑value MRT card to avoid queues.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Transport</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">For intercity trips, book a seat on the State Railway’s “Special Express” trains or use budget airlines like AirAsia and Nok Air; consider night trains with sleeper berths to save on both transport and a night’s accommodation.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Special Events</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Songkran (Thai New Year) in mid‑April turns streets into massive water fights, so book lodging early, wear waterproof shoes, and be ready to join the fun while respecting local customs.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Special Events</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Loy Krathong in November (and the Yi Peng lantern sky in Chiang Mai) offers magical river lantern releases; bring a waterproof bag for electronics and arrive early for the best viewing spots.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Special Events</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Chinese New Year, usually in January or February, lights up Bangkok’s Chinatown with dragon dances and street food stalls—note that banks and some offices close, so plan cash withdrawals ahead.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Special Events</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">The Phuket Vegetarian Festival in October features nine days of strict vegetarian fasting, fire‑walking processions, and vibrant parades; respect participants’ observances and try the special vegetarian dishes.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Must See</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Explore the bustling Grand Palace in Bangkok, where glittering temples and the Emerald Buddha showcase Thailand’s rich royal heritage.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Must See</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Visit the ancient city of Ayutthaya, a UNESCO World Heritage site, to wander among towering ruins and historic stupas that tell stories of a former Siamese capital.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Must See</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Take a sunrise boat tour of the limestone cliffs and emerald waters of Phang Nga Bay, with iconic James Bond Island and hidden sea caves.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Must See</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Relax on the powder‑white sands of Phuket’s Patong Beach or the quieter shores of Kata Noi, where crystal‑clear water meets vibrant beachside nightlife.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Must See</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Discover the lush jungles and waterfalls of Khao Sok National Park, and consider an overnight stay in a floating bungalow on Cheow Lan Lake.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Must See</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Experience the cultural festivities of Chiang Mai’s Yi Peng Lantern Festival, where thousands of lanterns illuminate the night sky over historic temples.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Cultural Norm</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Always show respect for the Thai monarchy; avoid any criticism, stand for the national anthem, and treat images of the king with reverence.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Cultural Norm</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">When visiting temples, dress modestly by covering shoulders and knees, remove your shoes before entering, and keep your head low as a sign of humility.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Cultural Norm</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Use the traditional wai greeting with palms together and a slight bow, and remember that pointing your feet at people or religious objects is considered rude.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Safety</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Carry bottled water, drink only sealed beverages, get hepatitis A, typhoid and routine vaccines before you go, and be cautious with street food hygiene; also avoid poorly lit or isolated neighborhoods after dark and always watch traffic, as road safety can be unpredictable.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Food Drink</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Don’t miss Thailand’s iconic dishes—Pad Thai, Tom Yum Goong, Som Tum, and mango sticky rice—best enjoyed from bustling street stalls or night‑market vendors where the flavors are freshest.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Food Drink</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">Explore regional specialties: the creamy coconut‑curry noodle soup Khao Soi in the north, spicy grilled chicken (Gai Yang) with sticky rice and papaya salad in Isan, and the southern seafood curries that showcase abundant fresh fish and lemongrass.</p>
+          </div>
+          
+          <div class="tip-card">
+            <div class="tip-header">
+              
+              <span class="tip-badge">Food Drink</span>
+              
+              
+              <span class="tip-location">
+                
+                Thailand
+              </span>
+              
+            </div>
+            <p class="tip-text">If you have dietary restrictions, remember many dishes contain fish sauce, shrimp paste, or peanuts; politely ask for "mai sai nam pla" (no fish sauce) or "jay" (vegetarian) and specify your spice tolerance to ensure a comfortable meal.</p>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <!-- DISCLAIMER FOOTER (Sits naturally at the very end of the document) -->
+  <footer class="disclaimer-footer">
+    Every reasonable effort was done to ensure accuracy at time of publication. However, please check current status as opening times may change.
+  </footer>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const placesData = [{"category": "attractions", "city": "", "country": "Thailand", "name": "Grand Palace", "local_name": "พระบรมมหาราชวัง", "address": "Na Phra Lan Road, Phra Nakhon, Bangkok 10200, Thailand", "description": "The Grand Palace is a dazzling complex of royal buildings, courtyards and sacred temples that once housed Thailand’s monarchs. Its intricate architecture and the Emerald Buddha attract millions each year.", "opinion": "A must-see for any first-time visitor; the sheer scale and detail are unforgettable.", "url": "https://www.royalgrandpalace.th", "item_id": 101, "lat": 13.7493514, "lon": 100.4918643, "image": "images/thailand/101_Grand_Palace_01_opt.webp"}, {"category": "attractions", "city": "", "country": "Thailand", "name": "Wat Arun", "local_name": "วัดอรุณราชวราราม", "address": "158 Thanon Wang Doem, Wat Arun, Bangkok 10600, Thailand", "description": "Known as the Temple of Dawn, Wat Arun dazzles with its porcelain‑clad spires that glow at sunrise and sunset over the Chao Phraya River.", "opinion": "Ideal for early‑morning visits; a iconic photo spot and cultural highlight.", "url": "https://www.watarun.net", "item_id": 102, "lat": 13.7438976, "lon": 100.4885137, "image": "images/thailand/102_Wat_Arun_Temple_of_Dawn_01_opt.webp"}, {"category": "attractions", "city": "", "country": "Thailand", "name": "Ayutthaya Historical Park", "local_name": "อุทยานประวัติศาสตร์พระนครศรีอยุธยา", "address": "Ayutthaya Historical Park, Ayutthaya 13000, Thailand", "description": "The ruins of the former Siamese capital showcase towering stupas, Buddha statues and palace foundations that tell stories of a once‑flourishing empire.", "opinion": "Must-see for history buffs; a day trip from Bangkok offers a vivid glimpse of ancient Thailand.", "url": "https://www.ayutthaya.go.th", "item_id": 103, "lat": 14.3535461, "lon": 100.5622548, "image": null}, {"category": "attractions", "city": "", "country": "Thailand", "name": "Chiang Mai Old City", "local_name": "เมืองเก่าเชียงใหม่", "address": "Old City, Chiang Mai 50200, Thailand", "description": "Enclosed by ancient walls, the Old City houses revered temples, bustling markets and a relaxed vibe that contrasts with Thailand’s bustling south.", "opinion": "Nice-to-see for culture lovers; spend a full day exploring its temples and cafés.", "url": "https://www.chiangmai.bangkok.com", "item_id": 104, "lat": 18.7811828, "lon": 98.9951115, "image": "images/thailand/104_Ayutthaya_Historical_Park_01_opt.webp"}, {"category": "attractions", "city": "", "country": "Thailand", "name": "Doi Suthep", "local_name": "วัดพระธาตุดอยสุเทพ", "address": "Huai Kaew Road, Tambon Su Thep, Mueang Chiang Mai District, Chiang Mai 50200, Thailand", "description": "Perched on a mountain overlooking Chiang Mai, Doi Suthep’s golden stupa and panoramic views make it a spiritual and visual highlight.", "opinion": "Must-see for sunrise or sunset; the climb adds a rewarding sense of adventure.", "url": "https://www.doisuthep.com", "item_id": 105, "lat": 18.8166077, "lon": 98.89236, "image": null}, {"category": "attractions", "city": "", "country": "Thailand", "name": "Sukhothai Historical Park", "local_name": "อุทยานประวัติศาสตร์สุโขทัย", "address": "Sukhothai Historical Park, Sukhothai 64220, Thailand", "description": "The birthplace of Thai architecture, Sukhothai’s well‑preserved stone temples and lotus‑filled ponds evoke the elegance of the 13th‑century kingdom.", "opinion": "Ideal for a second visit; the tranquil atmosphere appeals to history enthusiasts.", "url": "https://www.sukhothaihistoricalpark.com", "item_id": 106, "lat": 17.0218403, "lon": 99.7031151, "image": null}, {"category": "attractions", "city": "", "country": "Thailand", "name": "Damnoen Saduak Floating Market", "local_name": "ตลาดน้ำดำเนินสะดวก", "address": "Damnoen Saduak District, Ratchaburi Province 70130, Thailand", "description": "This iconic floating market showcases vendors selling fruit, noodles and souvenirs from colorful boats along a bustling canal.", "opinion": "Nice-to-see for cultural immersion; best visited early to beat the tourist rush.", "url": "https://www.damnoensaduakfloatingmarket.com", "item_id": 107, "lat": 13.5197624, "lon": 99.9593519, "image": "images/thailand/107_Doi_Inthanon_National_Park_01_opt.webp"}, {"category": "natural_attractions", "city": "", "country": "Thailand", "name": "Erawan National Park", "local_name": "อุทยานแห่งชาติเอราวัณ", "address": "Erawan National Park, Sai Yok District, Kanchanaburi Province, Thailand", "description": "Famous for its tiered emerald-green waterfalls that cascade over seven levels, surrounded by lush forest and limestone cliffs.", "opinion": "A must-see for waterfall lovers; the hike is rewarding and suitable for most visitors.", "url": "https://www.thainationalparks.com/erawan-national-park", "item_id": 109, "lat": 14.3486384, "lon": 99.0697259, "image": null}, {"category": "natural_attractions", "city": "", "country": "Thailand", "name": "Doi Inthanon National Park", "local_name": "อุทยานแห่งชาติผาอินทนนท์", "address": "Doi Inthanon National Park, Chom Thong District, Chiang Mai Province, Thailand", "description": "Home to the country's highest mountain, misty cloud forests, and stunning King and Queen pagodas with panoramic views.", "opinion": "Must-see for hikers and photographers; the cooler climate adds a unique experience.", "url": "https://www.thainationalparks.com/doi-inthanon-national-park", "item_id": 110, "lat": 18.5326746, "lon": 98.5578032, "image": null}, {"category": "natural_attractions", "city": "", "country": "Thailand", "name": "Phang Nga Bay", "local_name": "อ่าวพังงา", "address": "Phang Nga Bay, Phang Nga Province, Thailand", "description": "Iconic limestone karsts jut out of emerald waters, creating dramatic seascapes famously featured in movies.", "opinion": "Nice-to-see on a day cruise; ideal for photography and gentle kayaking.", "url": "https://www.tourismthailand.org/Attraction/Phang-Nga-Bay--107", "item_id": 111, "lat": 8.2916672, "lon": 98.5527728, "image": null}, {"category": "natural_attractions", "city": "", "country": "Thailand", "name": "Khao Sok National Park", "local_name": "อุทยานแห่งชาติเขาสก", "address": "Khao Sok National Park, Surat Thani Province, Thailand", "description": "A stunning man-made lake framed by towering limestone cliffs and dense rainforest, offering jungle safaris and floating bungalows.", "opinion": "Must-see for nature immersion; suitable for adventure seekers and families alike.", "url": "https://www.thainationalparks.com/khao-sok-national-park", "item_id": 112, "lat": 9.0686898, "lon": 98.5738024, "image": null}, {"category": "natural_attractions", "city": "", "country": "Thailand", "name": "Khao Yai National Park", "local_name": "อุทยานแห่งชาติเขาใหญ่", "address": "Khao Yai National Park, Pak Chong District, Nakhon Ratchasima Province, Thailand", "description": "One of Southeast Asia's largest wildlife reserves, featuring waterfalls, grasslands, and abundant wildlife such as elephants and gibbons.", "opinion": "A must-see for wildlife enthusiasts; can be explored over multiple days.", "url": "https://www.thainationalparks.com/khao-yai-national-park", "item_id": 113, "lat": 14.3259499, "lon": 101.5762598, "image": null}, {"category": "cities", "city": "", "country": "Thailand", "name": "Bangkok", "local_name": "กรุงเทพมหานคร", "address": "Bangkok, Thailand", "description": "Thailand’s bustling capital blends modern skyscrapers with historic temples; top attractions include the Grand Palace, Wat Arun, and Chatuchak Weekend Market.", "opinion": "A must-see for first-time visitors who want to experience Thailand’s vibrant culture and nightlife.", "url": "https://www.tourismthailand.org/Destination/Bangkok", "item_id": 114, "lat": 13.7393113, "lon": 100.5166499, "image": null}, {"category": "cities", "city": "", "country": "Thailand", "name": "Chiang Mai", "local_name": "เชียงใหม่", "address": "Chiang Mai, Thailand", "description": "Northern Thailand’s cultural hub is famed for its ancient walled city, night markets, and nearby mountains; highlights are Wat Phra That Doi Suthep, Chiang Mai Old City Temples, and the Sunday Walking Street.", "opinion": "Ideal for travelers seeking history, festivals, and a relaxed atmosphere; a must-see if you enjoy cultural immersion.", "url": "https://www.tourismthailand.org/Destination/Chiang-Mai", "item_id": 115, "lat": 18.7882778, "lon": 98.9858802, "image": null}, {"category": "cities", "city": "", "country": "Thailand", "name": "Pattaya", "local_name": "พัทยา", "address": "Pattaya, Chonburi Province, Thailand", "description": "A coastal city known for its lively entertainment, water sports, and cultural sites; must‑visit attractions include Walking Street, Sanctuary of Truth, and Nong Nooch Tropical Garden.", "opinion": "Suitable for those who enjoy nightlife and family-friendly attractions; not essential if you prefer quieter beaches.", "url": "https://www.tourismthailand.org/Destination/Pattaya", "item_id": 116, "lat": 12.9435007, "lon": 100.884822, "image": null}, {"category": "resort_towns", "city": "", "country": "Thailand", "name": "Krabi", "local_name": "กระบี่", "address": "Ao Nang, Krabi Province, Thailand", "description": "Krabi offers dramatic limestone cliffs, emerald lagoons and easy access to Railay Beach, ideal for rock‑climbing and island hopping.", "opinion": "A must‑see for adventure lovers and those who prefer a more relaxed vibe than Phuket.", "url": "https://www.krabi.go.th", "item_id": 117, "lat": 8.0320563, "lon": 98.829336, "image": null}, {"category": "resort_towns", "city": "", "country": "Thailand", "name": "Hua Hin", "local_name": "หัวหิน", "address": "Hua Hin Beach Road, Hua Hin, Prachuap Khiri Khan, Thailand", "description": "Hua Hin blends a historic royal resort town feel with a long sandy beach, night markets and nearby golf courses.", "opinion": "Suitable for travelers who enjoy a quieter seaside town with easy day trips to Bangkok; great for a laid‑back getaway.", "url": "https://www.hua-hin.go.th", "item_id": 118, "lat": 12.5699326, "lon": 99.9573437, "image": null}, {"category": "islands", "city": "", "country": "Thailand", "name": "Phuket", "local_name": "Phuket Island", "address": "Phuket Province, Thailand", "description": "Thailand’s largest island, Phuket blends bustling nightlife, vibrant markets, and over 30 stunning beaches, making it a versatile destination for both adventure and relaxation.", "opinion": "A must‑see for first‑time visitors who want a mix of culture, dining, and beach fun.", "url": "https://www.phuket.net", "item_id": 119, "lat": 7.8847901, "lon": 98.3891503, "image": null}, {"category": "islands", "city": "", "country": "Thailand", "name": "Koh Samui", "local_name": "Ko Samui", "address": "Samui District, Surat Thani Province, Thailand", "description": "Known for palm‑fringed bays, luxury resorts, and the iconic Big Buddha, Koh Samui offers a laid‑back vibe with plenty of upscale amenities.", "opinion": "Ideal for travelers seeking a balance of relaxation and nightlife; a must‑see for beach lovers.", "url": "https://www.kohsamui.org", "item_id": 120, "lat": 9.5488263, "lon": 100.0631993, "image": null}, {"category": "islands", "city": "", "country": "Thailand", "name": "Koh Phi Phi", "local_name": "Ko Phi Phi", "address": "Krabi Province, Thailand (Phi Phi Islands)", "description": "Famous for Maya Bay’s crystal waters and dramatic limestone cliffs, the Phi Phi archipelago is a hotspot for snorkeling, diving, and iconic scenery.", "opinion": "A must‑see if you love dramatic landscapes and vibrant marine life, though it can be crowded.", "url": "https://www.phiphi.phuketguide.com", "item_id": 121, "lat": 7.7373725, "lon": 98.7704546, "image": null}, {"category": "islands", "city": "", "country": "Thailand", "name": "Koh Tao", "local_name": "Ko Tao", "address": "Ko Tao, Surat Thani Province, Thailand", "description": "Renowned as a diver’s paradise, Koh Tao boasts abundant coral reefs, affordable dive schools, and a relaxed island atmosphere.", "opinion": "Perfect for diving enthusiasts and budget travelers; a must‑see for underwater exploration.", "url": "https://www.koh-tao.org", "item_id": 122, "lat": 10.0790243, "lon": 99.8273831, "image": null}, {"category": "islands", "city": "", "country": "Thailand", "name": "Koh Phangan", "local_name": "Ko Phangan", "address": "Phangan District, Surat Thani Province, Thailand", "description": "Best known for its Full Moon Party, Koh Phangan also offers tranquil waterfalls, quiet bays, and lush jungles.", "opinion": "Great for partygoers and nature lovers alike; must‑see for the Full Moon experience, otherwise a nice‑to‑see island.", "url": "https://www.kohphangan.org", "item_id": 123, "lat": 9.7061843, "lon": 99.9908319, "image": null}, {"category": "islands", "city": "", "country": "Thailand", "name": "Koh Chang", "local_name": "Ko Chang", "address": "Trat Province, Thailand", "description": "Thailand’s second‑largest island, Koh Chang offers rugged mountains, waterfalls, and a mix of lively and secluded beaches.", "opinion": "Suitable for adventure seekers and families; a nice‑to‑see alternative to the more touristy islands.", "url": "https://www.kohchang.org", "item_id": 124, "lat": 12.0546168, "lon": 102.3373426, "image": null}, {"category": "islands", "city": "", "country": "Thailand", "name": "Similan Islands", "local_name": "Ko Similan", "address": "Phang Nga Province, Thailand (Similan National Park)", "description": "A world‑renowned dive destination, the Similan Islands showcase pristine white beaches and some of the clearest waters in the region.", "opinion": "A must‑see for serious divers and snorkelers; can be deferred if diving isn’t a priority.", "url": "https://www.similanislands.com", "item_id": 125, "lat": 8.826909, "lon": 97.7994925, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Wat Pho", "local_name": "วัดโพธิ์", "address": "2 Sanam Chai Road, Phra Nakhon, Bangkok 10200, Thailand", "description": "Wat Pho houses the massive Reclining Buddha and is renowned as Thailand's oldest university of traditional massage.", "opinion": "Must-see for its iconic statue and tranquil atmosphere; perfect for a cultural pause.", "url": "https://www.watpho.com", "item_id": 126, "lat": 13.7463456, "lon": 100.4927381, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Chatuchak Weekend Market", "local_name": "ตลาดจตุจักร", "address": "Kamphaeng Phet 2 Road, Chatuchak, Bangkok 10900, Thailand", "description": "One of the world’s largest markets, Chatuchak offers everything from vintage clothing to exotic foods across 27,000 stalls.", "opinion": "A must-see for shoppers and foodies; allocate several hours to explore its maze-like aisles.", "url": "https://www.chatuchakmarket.org", "item_id": 127, "lat": 13.8002651, "lon": 100.5511228, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Jim Thompson House", "local_name": "บ้านจิม ทอมป์สัน", "address": "6 Soi Kasemsan 2, Rama 1 Road, Bangkok 10330, Thailand", "description": "The former home of the American silk entrepreneur showcases traditional Thai teak architecture and a fine silk collection.", "opinion": "Nice-to-see for design enthusiasts and history buffs; a peaceful retreat from the city bustle.", "url": "https://www.jimthompsonhouse.com", "item_id": 128, "lat": 13.7492268, "lon": 100.5282811, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "MBK Center", "local_name": "เอ็มบีเค เซ็นเตอร์", "address": "444 Phayathai Road, Pathum Wan, Bangkok 10330, Thailand", "description": "A massive shopping complex famous for affordable electronics, fashion, and a lively food court.", "opinion": "Great for a quick shopping fix; not a cultural priority but convenient for tech lovers.", "url": "https://www.mbkcenter.co.th", "item_id": 129, "lat": 13.7447151, "lon": 100.5299165, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Wat Chedi Luang", "local_name": "วัดเจดีย์หลวง", "address": "Prapokkloa Road, Old City, Chiang Mai 50200, Thailand", "description": "A historic temple housing a massive, partially ruined chedi that once held the Emerald Buddha.", "opinion": "Nice-to-see for its atmospheric ruins and cultural depth; fits well into a day exploring Chiang Mai’s Old City.", "url": "https://www.tourismthailand.org/Attraction/Wat-Chedi-Luang", "item_id": 131, "lat": 18.7871427, "lon": 98.986784, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Chiang Mai Night Bazaar", "local_name": "ไนท์บาซาร์เชียงใหม่", "address": "Chang Khlan Road, Chiang Mai 50100, Thailand", "description": "A bustling evening market offering handicrafts, street food, and live performances along a vibrant promenade.", "opinion": "Must-see for night‑life lovers and souvenir hunters; the lively atmosphere makes it a memorable experience.", "url": "https://www.chiangmainightbazaar.com", "item_id": 132, "lat": 18.784441, "lon": 99.0003797, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Phuket Old Town", "local_name": "เมืองเก่าภูเก็ต", "address": "Thalang Road, Phuket Town, Phuket 83000, Thailand", "description": "Charming Sino‑Portuguese shophouses line colorful streets, hosting cafés, galleries, and Sunday street markets.", "opinion": "Nice-to-see for architecture fans and relaxed strolls; a pleasant contrast to Phuket’s beach scene.", "url": "https://www.phuket.com/phuket-old-town.htm", "item_id": 133, "lat": 7.8848426, "lon": 98.3918997, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Patong Beach", "local_name": "หาดป่าตอง", "address": "Patong, Kathu, Phuket 83150, Thailand", "description": "Phuket’s most famous beach combines golden sand, vibrant nightlife, and a bustling promenade of bars and restaurants.", "opinion": "Suitable for beach lovers and partygoers; can be deferred if you prefer quieter shores.", "url": "https://www.patong.net", "item_id": 135, "lat": 7.8938914, "lon": 98.2949613, "image": null}, {"category": "city_attractions", "city": "", "country": "Thailand", "name": "Sanctuary of Truth", "local_name": "ศาลาแห่งความจริง", "address": "206/3 Moo 3, Nakkerd, Phuket 83100, Thailand", "description": "An all‑wood temple filled with intricate carvings that celebrate Buddhist and Hindu mythology, set against the sea.", "opinion": "Must-see for architecture aficionados; the sheer craftsmanship makes it a unique photo spot.", "url": "https://www.sanctuaryoftruth.com", "item_id": 136, "lat": 12.972777, "lon": 100.8891503, "image": null}];
+    const TILE_PROVIDER = "osm";
+    const SHOW_WEBSITE_LINK = true;
+    const SHOW_GMAPS_LINK = false;
+    const MARKER_LABEL_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, \u0027Segoe UI\u0027, Roboto, sans-serif";
+    const MARKER_LABEL_FONT_SIZE = "12px";
+
+    const TILE_CONFIGS = {
+      osm: {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        subdomains: 'abc',
+        maxZoom: 19
+      },
+      wikimedia: {
+        url: 'https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, style by <a href="https://wikimediafoundation.org/wiki/Maps_Terms_of_Use">Wikimedia</a>',
+        subdomains: '',
+        maxZoom: 19
+      },
+      carto: {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }
+    };
+
+    const map = L.map('map');
+    const activeTiles = TILE_CONFIGS[TILE_PROVIDER] || TILE_CONFIGS.osm;
+    
+    L.tileLayer(activeTiles.url, {
+      attribution: activeTiles.attribution,
+      subdomains: activeTiles.subdomains,
+      maxZoom: activeTiles.maxZoom
+    }).addTo(map);
+
+    function getMarkerIcon(category, name) {
+        const colors = {
+            'attractions': '#3388ff',
+            'food': '#e74c3c',
+            'nature': '#2ecc71',
+            'culture': '#9b59b6',
+            'shopping': '#f39c12',
+            'default': '#3388ff'
+        };
+        const cat = category ? category.toLowerCase().trim() : 'default';
+        const color = colors[cat] || colors['default'];
+        const safeName = name ? String(name).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") : '';
+
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="38" viewBox="0 0 24 38">
+            <path fill="${color}" stroke="#fff" stroke-width="1.5" d="M12,2C7.03,2,3,6.03,3,11c0,6.5,9,18,9,18s9-11.5,9-18C21,6.03,16.97,2,12,2z M12,13c-1.66,0-3-1.34-3-3s1.34-3,3-3s3,1.34,3,3S13.66,13,12,13z"/>
+        </svg>`;
+
+        return L.divIcon({
+            html: `<div class="marker-with-label" style="display: flex; align-items: center; gap: 6px; filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.3)); position: relative;">
+                <div style="width: 24px; height: 38px; flex-shrink: 0;">${svg}</div>
+                <span class="marker-label" style="background: rgba(255,255,255,0.92); padding: 2px 8px; border-radius: 4px; font-size: ${MARKER_LABEL_FONT_SIZE}; font-family: ${MARKER_LABEL_FONT_FAMILY}; font-weight: 600; color: #26302c; white-space: nowrap; border: 1px solid rgba(0,0,0,0.15); box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: absolute; left: 26px; top: 50%; transform: translateY(-50%); pointer-events: none; z-index: 10;">${safeName}</span>
+            </div>`,
+            className: 'custom-marker-with-label',
+            iconSize: [24, 38],
+            iconAnchor: [12, 38],
+            popupAnchor: [0, -38]
+        });
+    }
+
+    function buildGoogleMapsLink(place) {
+      const parts = [place.name, place.address || `${place.city || ''} ${place.country || ''}`.trim()];
+      const query = parts.filter(Boolean).join(', ');
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    }
+
+    const markers = {};
+    const bounds = [];
+
+    placesData.forEach(place => {
+      const marker = L.marker([place.lat, place.lon], {
+          icon: getMarkerIcon(place.category, place.name)
+      }).addTo(map);
+
+      let popupHtml = '';
+      if (place.image) {
+        popupHtml += `<img src="${place.image}" alt="${place.name}">`;
+      }
+      popupHtml += `<h3>${place.name}</h3>`;
+      if (place.local_name && place.local_name !== place.name) {
+        popupHtml += `<p style="font-style:italic;margin-top:-4px;">${place.local_name}</p>`;
+      }
+      popupHtml += `<p>${place.description}</p>`;
+      if (place.opinion) {
+        popupHtml += `<p class="opinion">${place.opinion}</p>`;
+      }
+      if (place.address) {
+        popupHtml += `<p style="font-size:0.78rem;">${place.address}</p>`;
+      }
+
+      const links = [];
+      if (SHOW_WEBSITE_LINK && place.url) {
+        links.push(`<a href="${place.url}" target="_blank" rel="noopener">Website &rarr;</a>`);
+      }
+      if (SHOW_GMAPS_LINK) {
+        links.push(`<a href="${buildGoogleMapsLink(place)}" target="_blank" rel="noopener">Google Maps &rarr;</a>`);
+      }
+      
+      if (links.length) {
+        popupHtml += `<div class="links">${links.join('')}</div>`;
+      }
+
+      marker.bindPopup(popupHtml);
+      markers[place.item_id] = marker;
+      bounds.push([place.lat, place.lon]);
+    });
+
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [40, 40] });
+    } else {
+      map.setView([0, 0], 2);
+    }
+
+    document.getElementById('reset-view-btn').addEventListener('click', () => {
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    });
+
+    function showPlace(id) {
+      const marker = markers[id];
+      if (!marker) return;
+      map.setView(marker.getLatLng(), 16);
+      marker.openPopup();
+    }
+  </script>
+
+</body>
+</html>
